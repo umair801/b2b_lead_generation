@@ -177,10 +177,10 @@ def get_leads(
 def get_metrics():
     """Return pipeline performance metrics."""
     try:
-        all_leads = supabase.table("leads").select("qualification_score, email").execute().data
+        all_leads = supabase.table("leads").select("qualification_score, contact_email").execute().data
         total = len(all_leads)
         qualified = sum(1 for l in all_leads if (l.get("qualification_score") or 0) >= 60)
-        with_email = sum(1 for l in all_leads if l.get("email"))
+        with_email = sum(1 for l in all_leads if l.get("contact_email"))
 
         return {
             "total_leads_in_db": total,
