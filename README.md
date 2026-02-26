@@ -2,7 +2,7 @@
 
 An enterprise-grade autonomous lead generation pipeline that discovers, enriches, qualifies, and drafts personalized outreach for B2B prospects - fully automated.
 
-**Live API:** https://your-railway-url.up.railway.app/docs
+**Live API:** https://leads.datawebify.com/docs
 
 ---
 
@@ -89,14 +89,14 @@ All results saved to Supabase (PostgreSQL) and exported to CSV for CRM import.
 
 ### Example: Trigger the pipeline
 ```bash
-curl -X POST "https://your-railway-url.up.railway.app/pipeline/run" \
+curl -X POST "https://leads.datawebify.com/pipeline/run" \
   -H "Content-Type: application/json" \
   -d '{"domains": ["salesloft.com", "outreach.io"], "max_leads_per_domain": 5}'
 ```
 
 ### Example: Get qualified leads only
 ```bash
-curl "https://your-railway-url.up.railway.app/leads?min_score=60"
+curl "https://leads.datawebify.com/leads?min_score=60"
 ```
 
 ---
