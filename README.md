@@ -141,6 +141,6 @@ company signals, and contact role. Each email is unique.
 ## Portfolio
 
 **Website:** https://datawebify.com
-**Project Page:** https://datawebify.com/projects/b2b-lead-generation
-**GitHub:** https://github.com/umair801/b2b-lead-generation
+**Project Page:** https://datawebify.com/projects/agai2_b2b_lead_generation
+**GitHub:** https://github.com/umair801/b2b_lead_generation
 **Live API:** https://leads.datawebify.com/docs
