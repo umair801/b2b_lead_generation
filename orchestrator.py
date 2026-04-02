@@ -8,6 +8,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from agents.discovery.discovery_agent import DiscoveryAgent, DiscoveredLead
 from agents.enrichment.enrichment_agent import EnrichmentAgent, EnrichedLead
 from agents.qualification.qualification_agent import QualificationAgent, QualifiedLead
+from export_layer import ExportLayer
 
 
 # --- Pipeline State ---
@@ -46,9 +47,17 @@ def qualification_node(state: PipelineState) -> PipelineState:
 
 
 def summary_node(state: PipelineState) -> PipelineState:
-    logger.info("PIPELINE | Stage 4: Summary")
+    logger.info("PIPELINE | Stage 4: Summary + Export")
     qualified = state["qualified_leads"]
     passed = [q for q in qualified if q.icp_match]
+
+    # Export to Supabase
+    try:
+        exporter = ExportLayer()
+        exporter.to_supabase(passed, [])
+        logger.info(f"PIPELINE | Exported {len(passed)} qualified leads to Supabase")
+    except Exception as e:
+        logger.error(f"PIPELINE | Export failed: {e}")
 
     summary = {
         "total_discovered": len(state["discovered_leads"]),

@@ -1,5 +1,4 @@
 # B2B Lead Generation System
-### Project 2 of 50 — Agentic AI Portfolio | Muhammad Umair
 
 **Live API:** https://leads.datawebify.com/docs
 
