@@ -74,7 +74,12 @@ class JobStatus(BaseModel):
 # --- Background pipeline runner ---
 async def run_pipeline_background(job_id: str, domains: list[str]):
     """Runs the full LangGraph pipeline in the background."""
-    from orchestrator import run_pipeline  # import here to avoid circular imports
+    try:
+        from orchestrator import run_pipeline
+    except Exception as import_err:
+        logger.error(f"[Job {job_id}] IMPORT ERROR: {import_err}")
+        _update_job(job_id, status="failed", error=f"Import error: {str(import_err)}", completed_at=datetime.utcnow().isoformat())
+        return
 
     _update_job(job_id, status="running")
     total_qualified = 0
