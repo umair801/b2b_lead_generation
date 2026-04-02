@@ -91,7 +91,7 @@ class ExportLayer:
                     "data_source": "hunter+apollo",
                     "enrichment_status": "enriched",
                 }
-                self.supabase.table("leads").upsert(
+                self.supabase.table("leads_leads").upsert(
                     record,
                     on_conflict="contact_email"
                 ).execute()

@@ -26,8 +26,25 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# --- In-memory job tracker ---
-jobs: dict[str, dict] = {}
+# --- Supabase job helpers ---
+def _create_job(job_id: str, domains: list, started_at: str):
+    supabase.table("leads_jobs").insert({
+        "job_id": job_id,
+        "status": "queued",
+        "domains_processed": 0,
+        "leads_discovered": 0,
+        "leads_qualified": 0,
+        "error": None,
+        "started_at": started_at,
+        "completed_at": None,
+    }).execute()
+
+def _update_job(job_id: str, **kwargs):
+    supabase.table("leads_jobs").update(kwargs).eq("job_id", job_id).execute()
+
+def _get_job(job_id: str):
+    result = supabase.table("leads_jobs").select("*").eq("job_id", job_id).execute()
+    return result.data[0] if result.data else None
 
 
 # --- Request / Response models ---
@@ -59,9 +76,10 @@ async def run_pipeline_background(job_id: str, domains: list[str]):
     """Runs the full LangGraph pipeline in the background."""
     from orchestrator import run_pipeline  # import here to avoid circular imports
 
-    jobs[job_id]["status"] = "running"
+    _update_job(job_id, status="running")
     total_qualified = 0
     total_discovered = 0
+    domains_processed = 0
 
     try:
         for domain in domains:
@@ -72,19 +90,29 @@ async def run_pipeline_background(job_id: str, domains: list[str]):
             qualified = result.get("leads_qualified", 0)
             total_discovered += discovered
             total_qualified += qualified
+            domains_processed += 1
 
-            jobs[job_id]["domains_processed"] += 1
-            jobs[job_id]["leads_discovered"] += discovered
-            jobs[job_id]["leads_qualified"] += qualified
+            _update_job(
+                job_id,
+                domains_processed=domains_processed,
+                leads_discovered=total_discovered,
+                leads_qualified=total_qualified,
+            )
 
-        jobs[job_id]["status"] = "completed"
-        jobs[job_id]["completed_at"] = datetime.utcnow().isoformat()
+        _update_job(
+            job_id,
+            status="completed",
+            completed_at=datetime.utcnow().isoformat(),
+        )
         logger.info(f"[Job {job_id}] Pipeline completed. Qualified leads: {total_qualified}")
 
     except Exception as e:
-        jobs[job_id]["status"] = "failed"
-        jobs[job_id]["error"] = str(e)
-        jobs[job_id]["completed_at"] = datetime.utcnow().isoformat()
+        _update_job(
+            job_id,
+            status="failed",
+            error=str(e),
+            completed_at=datetime.utcnow().isoformat(),
+        )
         logger.error(f"[Job {job_id}] Pipeline failed: {e}")
 
 
@@ -109,16 +137,7 @@ async def trigger_pipeline(request: PipelineRequest, background_tasks: Backgroun
     job_id = str(uuid.uuid4())
     started_at = datetime.utcnow().isoformat()
 
-    jobs[job_id] = {
-        "status": "queued",
-        "domains_processed": 0,
-        "leads_discovered": 0,
-        "leads_qualified": 0,
-        "error": None,
-        "started_at": started_at,
-        "completed_at": None
-    }
-
+    _create_job(job_id, request.domains, started_at)
     background_tasks.add_task(run_pipeline_background, job_id, request.domains)
 
     return PipelineResponse(
@@ -132,10 +151,10 @@ async def trigger_pipeline(request: PipelineRequest, background_tasks: Backgroun
 @app.get("/pipeline/status/{job_id}", response_model=JobStatus)
 def get_job_status(job_id: str):
     """Check the status of a running or completed pipeline job."""
-    if job_id not in jobs:
+    job = _get_job(job_id)
+    if not job:
         raise HTTPException(status_code=404, detail="Job ID not found.")
 
-    job = jobs[job_id]
     return JobStatus(
         job_id=job_id,
         status=job["status"],
@@ -155,7 +174,7 @@ def get_leads(
 ):
     """Retrieve leads from Supabase with optional score filter."""
     try:
-        query = supabase.table("leads").select("*").limit(limit)
+        query = supabase.table("leads_leads").select("*").limit(limit)
 
         if min_score is not None:
             query = query.gte("qualification_score", min_score)
@@ -177,7 +196,7 @@ def get_leads(
 def get_metrics():
     """Return pipeline performance metrics."""
     try:
-        all_leads = supabase.table("leads").select("qualification_score, contact_email").execute().data
+        all_leads = supabase.table("leads_leads").select("qualification_score, contact_email").execute().data
         total = len(all_leads)
         qualified = sum(1 for l in all_leads if (l.get("qualification_score") or 0) >= 60)
         with_email = sum(1 for l in all_leads if l.get("contact_email"))
@@ -187,7 +206,7 @@ def get_metrics():
             "qualified_leads": qualified,
             "qualification_rate": f"{round(qualified / total * 100, 1)}%" if total else "0%",
             "email_enrichment_rate": f"{round(with_email / total * 100, 1)}%" if total else "0%",
-            "active_jobs": len([j for j in jobs.values() if j["status"] == "running"])
+            "active_jobs": len(supabase.table("leads_jobs").select("job_id").eq("status", "running").execute().data)
         }
 
     except Exception as e:
